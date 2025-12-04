@@ -129,16 +129,34 @@ def stemming_stopwords(li):
 
 
 def fetch_posters(movie_id):
-    response = requests.get(
-        'https://api.themoviedb.org/3/movie/{}?api_key=6177b4297dff132d300422e0343471fb'.format(movie_id))
-    data = response.json()
-    try:
-        str_ = "https://image.tmdb.org/t/p/w780/" + data['poster_path']
-    except:
-        str_ = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
-               "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
-
-    return str_
+    import time
+    max_retries = 3
+    retry_delay = 1
+    
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(
+                'https://api.themoviedb.org/3/movie/{}?api_key=6177b4297dff132d300422e0343471fb'.format(movie_id),
+                timeout=10
+            )
+            data = response.json()
+            try:
+                str_ = "https://image.tmdb.org/t/p/w780/" + data['poster_path']
+            except:
+                str_ = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
+                       "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
+            return str_
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                continue
+            else:
+                # Return placeholder image if all retries fail
+                return "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
+                       "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
+        except Exception as e:
+            return "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
+                   "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
 
 
 def recommend(new_df, movie, pickle_file_path):
@@ -168,23 +186,47 @@ def vectorise(new_df, col_name):
 
 
 def fetch_person_details(id_):
-    data = requests.get(
-        'https://api.themoviedb.org/3/person/{}?api_key=6177b4297dff132d300422e0343471fb'.format(id_)).json()
+    import time
+    max_retries = 3
+    retry_delay = 1
+    
+    for attempt in range(max_retries):
+        try:
+            data = requests.get(
+                'https://api.themoviedb.org/3/person/{}?api_key=6177b4297dff132d300422e0343471fb'.format(id_),
+                timeout=10
+            ).json()
 
-    try:
-        url = 'https://image.tmdb.org/t/p/w220_and_h330_face' + data['profile_path']
+            try:
+                url = 'https://image.tmdb.org/t/p/w220_and_h330_face' + data['profile_path']
 
-        if data['biography']:
-            biography = data['biography']
-        else:
-            biography = " "
+                if data['biography']:
+                    biography = data['biography']
+                else:
+                    biography = " "
 
-    except:
-        url = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
-              "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
-        biography = ""
+            except:
+                url = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
+                      "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
+                biography = ""
 
-    return url, biography
+            return url, biography
+            
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+                continue
+            else:
+                # Return placeholder if all retries fail
+                url = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
+                      "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
+                biography = ""
+                return url, biography
+        except Exception as e:
+            url = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
+                  "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
+            biography = ""
+            return url, biography
 
 
 def get_details(selected_movie_name):

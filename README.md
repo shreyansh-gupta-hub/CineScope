@@ -66,3 +66,4 @@ Follow these steps to set up and run the application:
 
 Discover the joy of finding your next favorite movie with our Movie Recommender System!
 # CineScope
+# CineScope

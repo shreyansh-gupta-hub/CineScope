@@ -5,9 +5,20 @@ from processing import preprocess
 from processing.display import Main
 
 # Setting the wide mode as default
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="CineScope | Movie Discovery",
+    page_icon=None,
+    layout="wide"
+)
 
 displayed = []
+RECOMMENDER_CONFIG = [
+    ("Overall similarity", r'Files/similarity_tags_tags.pkl'),
+    ("Genre overlap", r'Files/similarity_tags_genres.pkl'),
+    ("Shared production", r'Files/similarity_tags_tprduction_comp.pkl'),
+    ("Keyword resonance", r'Files/similarity_tags_keywords.pkl'),
+    ("Cast proximity", r'Files/similarity_tags_tcast.pkl')
+]
 
 if 'movie_number' not in st.session_state:
     st.session_state['movie_number'] = 0
@@ -18,12 +29,155 @@ if 'selected_movie_name' not in st.session_state:
 if 'user_menu' not in st.session_state:
     st.session_state['user_menu'] = ""
 
+if 'recommendations_cache' not in st.session_state:
+    st.session_state['recommendations_cache'] = {}
+
+
+def inject_custom_styles():
+    st.markdown(
+        """
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;600&display=swap');
+            .stApp {
+                background: radial-gradient(circle at top left, rgba(34,105,127,0.45), rgba(4,16,36,0.95)),
+                            repeating-linear-gradient(135deg,
+                                rgba(18,93,115,0.35) 0px,
+                                rgba(18,93,115,0.35) 40px,
+                                rgba(6,18,40,0.65) 40px,
+                                rgba(6,18,40,0.65) 80px);
+                color: #f5f5f5;
+                font-family: 'Inter', sans-serif;
+            }
+            h1, h2, h3, h4 {
+                font-family: 'Space Grotesk', 'Inter', sans-serif;
+                letter-spacing: 0.02em;
+            }
+            .main-block {
+                padding: 2rem 2.5rem;
+                background: rgba(8, 15, 40, 0.55);
+                border-radius: 1.5rem;
+                border: 1px solid rgba(255, 255, 255, 0.05);
+                box-shadow: 0 15px 35px rgba(0,0,0,0.35);
+            }
+            .movie-chip {
+                padding: 0.35rem 0.75rem;
+                border-radius: 999px;
+                background: rgba(255,255,255,0.08);
+                font-size: 0.85rem;
+                display: inline-block;
+                margin-bottom: 0.35rem;
+            }
+            .section-title {
+                font-size: 1.1rem;
+                text-transform: uppercase;
+                letter-spacing: 0.2rem;
+                color: #7dd3fc;
+                margin-bottom: 0.5rem;
+            }
+            .card {
+                background: rgba(255,255,255,0.04);
+                padding: 1rem;
+                border-radius: 1rem;
+                border: 1px solid rgba(255,255,255,0.08);
+                min-height: 100%;
+                transition: transform 0.25s ease, border-color 0.25s ease;
+            }
+            .card:hover {
+                transform: translateY(-4px);
+                border-color: rgba(125, 211, 252, 0.35);
+            }
+            .recommend-card img {
+                border-radius: 0.75rem;
+                border: 1px solid rgba(255,255,255,0.1);
+            }
+            .recommend-card h4 {
+                font-size: 1rem;
+                margin-top: 0.75rem;
+                margin-bottom: 0.2rem;
+                color: #f8fafc;
+            }
+            .recommend-card span {
+                font-size: 0.85rem;
+                color: #cdd5f7;
+            }
+            .search-section .stSelectbox label {
+                font-size: 0.95rem;
+                color: #cbd5f5;
+            }
+            .stButton button {
+                background: linear-gradient(90deg, #f43f5e, #fb923c);
+                border: none;
+                color: #fff;
+                padding: 0.55rem 1.75rem;
+                border-radius: 999px;
+                font-weight: 600;
+            }
+            .stButton button:hover {
+                box-shadow: 0 8px 20px rgba(244,63,94,0.35);
+            }
+            .stTabs [data-baseweb="tab-list"] {
+                gap: 0.35rem;
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+            }
+            .stTabs [data-baseweb="tab"] {
+                background: rgba(255,255,255,0.04);
+                border-radius: 999px 999px 0 0;
+                padding: 0.4rem 1.25rem;
+                font-weight: 500;
+                color: #e2e8f0;
+            }
+            .stTabs [aria-selected="true"] {
+                background: rgba(125,211,252,0.15) !important;
+                color: #7dd3fc !important;
+            }
+            .stMetric {
+                background: rgba(255,255,255,0.04);
+                border-radius: 0.75rem;
+                padding: 0.75rem 1rem;
+                border: 1px solid rgba(255,255,255,0.06);
+            }
+            .stSlider > div > div {
+                background: rgba(255,255,255,0.08);
+                border-radius: 999px;
+            }
+            .stSlider [role="slider"] {
+                background: #38bdf8;
+                border: 3px solid rgba(255,255,255,0.4);
+            }
+            .stToggle label {
+                font-weight: 600;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
 
 def main():
+    inject_custom_styles()
+
+    def hero_header():
+        with st.container():
+            left, right = st.columns([3, 2], gap="large")
+            with left:
+                st.markdown('<div class="section-title">CineScope</div>', unsafe_allow_html=True)
+                st.title("Find your next movie night favourite")
+                st.markdown(
+                    "Dive into curated recommendations, rich movie insights, and a "
+                    "visual catalog powered by TMDB. Pick your vibe and let CineScope handle the rest."
+                )
+                st.caption("Tip: Start with similarity-based picks, then inspect cast & details.")
+            with right:
+                st.metric("Movies indexed", f"{len(movies):,}")
+                st.metric("Similarity features", "Genres | Keywords | Studios | Cast")
+                st.metric("Catalogue pages", f"{len(movies) // 10:,}")
+
     def initial_options():
+        hero_header()
+
         # To display menu
         st.session_state.user_menu = streamlit_option_menu.option_menu(
-            menu_title='What are you looking for? 👀',
+            menu_title='What are you looking for?',
             options=['Recommend me a similar movie', 'Describe me a movie', 'Check all Movies'],
             icons=['film', 'film', 'film'],
             menu_icon='list',
@@ -39,63 +193,82 @@ def main():
         elif st.session_state.user_menu == 'Check all Movies':
             paging_movies()
 
-    def recommend_display():
+    def gather_recommendations(selected_movie_name):
+        global displayed
+        displayed.clear()
+        collected = {}
+        for descriptor, path in RECOMMENDER_CONFIG:
+            recs = fetch_unique_recommendations(new_df, selected_movie_name, path)
+            if recs:
+                collected[descriptor] = recs
+        return collected
 
-        st.title('Movie Recommender System')
-
-        selected_movie_name = st.selectbox(
-            'Select a Movie...', new_df['title'].values
-        )
-
-        rec_button = st.button('Recommend')
-        if rec_button:
-            st.session_state.selected_movie_name = selected_movie_name
-            recommendation_tags(new_df, selected_movie_name, r'Files/similarity_tags_tags.pkl',"are")
-            recommendation_tags(new_df, selected_movie_name, r'Files/similarity_tags_genres.pkl',"on the basis of genres are")
-            recommendation_tags(new_df, selected_movie_name,
-                                r'Files/similarity_tags_tprduction_comp.pkl',"from the same production company are")
-            recommendation_tags(new_df, selected_movie_name, r'Files/similarity_tags_keywords.pkl',"on the basis of keywords are")
-            recommendation_tags(new_df, selected_movie_name, r'Files/similarity_tags_tcast.pkl',"on the basis of cast are")
-
-    def recommendation_tags(new_df, selected_movie_name, pickle_file_path,str):
-
-        movies, posters = preprocess.recommend(new_df, selected_movie_name, pickle_file_path)
-        st.subheader(f'Best Recommendations {str}...')
-
-        rec_movies = []
-        rec_posters = []
+    def fetch_unique_recommendations(dataset, selected_movie_name, pickle_file_path):
+        movies, posters = preprocess.recommend(dataset, selected_movie_name, pickle_file_path)
+        recs = []
         cnt = 0
-        # Adding only 5 uniques recommendations
-        for i, j in enumerate(movies):
+        for title, poster in zip(movies, posters):
             if cnt == 5:
                 break
-            if j not in displayed:
-                rec_movies.append(j)
-                rec_posters.append(posters[i])
-                displayed.append(j)
+            if title not in displayed:
+                recs.append({"title": title, "poster": poster})
+                displayed.append(title)
                 cnt += 1
+        return recs
 
-        # Columns to display informations of movies i.e. movie title and movie poster
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            st.text(rec_movies[0])
-            st.image(rec_posters[0])
-        with col2:
-            st.text(rec_movies[1])
-            st.image(rec_posters[1])
-        with col3:
-            st.text(rec_movies[2])
-            st.image(rec_posters[2])
-        with col4:
-            st.text(rec_movies[3])
-            st.image(rec_posters[3])
-        with col5:
-            st.text(rec_movies[4])
-            st.image(rec_posters[4])
+    def render_recommendation_cards(label, recommendations):
+        if not recommendations:
+            st.info("No fresh picks for this strategy, try another tab.")
+            return
+        st.markdown(f'<div class="section-title">{label}</div>', unsafe_allow_html=True)
+        cols = st.columns(len(recommendations))
+        for idx, col in enumerate(cols):
+            movie = recommendations[idx]
+            with col:
+                st.markdown('<div class="card recommend-card">', unsafe_allow_html=True)
+                st.image(movie["poster"], use_column_width=True)
+                st.markdown(f"<h4>{movie['title']}</h4>", unsafe_allow_html=True)
+                st.caption("Open Describe tab for complete profile.")
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    def recommend_display():
+
+        st.subheader('Smart movie picks tailored to your choice')
+
+        with st.container():
+            st.markdown('<div class="main-block search-section">', unsafe_allow_html=True)
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                selected_movie_name = st.selectbox(
+                    'Select a movie to get curated recommendations',
+                    new_df['title'].values,
+                    key="movie_select"
+                )
+            with col2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                rec_button = st.button('Recommend', use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        if rec_button:
+            st.session_state.selected_movie_name = selected_movie_name
+            st.session_state.recommendations_cache = gather_recommendations(selected_movie_name)
+
+        if st.session_state.recommendations_cache:
+            st.markdown("### Explore recommendation strategies")
+            tab_labels = list(st.session_state.recommendations_cache.keys())
+            tabs = st.tabs(tab_labels)
+            for tab, label in zip(tabs, tab_labels):
+                with tab:
+                    render_recommendation_cards(label, st.session_state.recommendations_cache[label])
+        else:
+            st.info("Pick a movie and hit Recommend to unlock tailored suggestions.")
 
     def display_movie_details():
 
         selected_movie_name = st.session_state.selected_movie_name
+        if not selected_movie_name:
+            st.info("Select a movie from the Recommend tab to see rich details here.")
+            return
         # movie_id = movies[movies['title'] == selected_movie_name]['movie_id']
         info = preprocess.get_details(selected_movie_name)
 
@@ -110,103 +283,80 @@ def main():
                 st.text('\n')
                 st.title(selected_movie_name)
                 st.text('\n')
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.text("Rating")
-                    st.write(info[8])
-                with col2:
-                    st.text("No. of ratings")
-                    st.write(info[9])
-                with col3:
-                    st.text("Runtime")
-                    st.write(info[6])
+                metric_col1, metric_col2, metric_col3 = st.columns(3)
+                with metric_col1:
+                    st.metric("Rating", info[8])
+                with metric_col2:
+                    st.metric("Votes", info[9])
+                with metric_col3:
+                    st.metric("Runtime", info[6])
 
-                st.text('\n')
-                st.write("Overview")
+                st.markdown('<div class="section-title">Overview</div>', unsafe_allow_html=True)
                 st.write(info[3], wrapText=False)
-                st.text('\n')
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.text("Release Date")
-                    st.text(info[4])
-                with col2:
-                    st.text("Budget")
-                    st.text(info[1])
-                with col3:
-                    st.text("Revenue")
-                    st.text(info[5])
 
-                st.text('\n')
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    str = ""
-                    st.text("Genres")
-                    for i in info[2]:
-                        str = str + i + " . "
-                    st.write(str)
+                stat1, stat2, stat3 = st.columns(3)
+                with stat1:
+                    st.caption("Release Date")
+                    st.write(info[4])
+                with stat2:
+                    st.caption("Budget")
+                    st.write(info[1])
+                with stat3:
+                    st.caption("Revenue")
+                    st.write(info[5])
 
-                with col2:
-                    str = ""
-                    st.text("Available in")
-                    for i in info[13]:
-                        str = str + i + " . "
-                    st.write(str)
-                with col3:
-                    st.text("Directed by")
-                    st.text(info[12][0])
-                st.text('\n')
+                info_col1, info_col2, info_col3 = st.columns(3)
+                with info_col1:
+                    genres = " · ".join(info[2])
+                    st.caption("Genres")
+                    st.write(genres)
+
+                with info_col2:
+                    avail = " · ".join(info[13])
+                    st.caption("Available in")
+                    st.write(avail)
+                with info_col3:
+                    st.caption("Directed by")
+                    st.write(info[12][0])
 
         # Displaying information of casts.
         st.header('Cast')
         cnt = 0
         urls = []
         bio = []
+        cast_names = []
         for i in info[14]:
             if cnt == 5:
                 break
             url, biography= preprocess.fetch_person_details(i)
             urls.append(url)
             bio.append(biography)
+            cast_names.append(i)
             cnt += 1
 
-        col1, col2, col3, col4, col5 = st.columns(5)
-        with col1:
-            st.image(urls[0])
-            # Toggle button to show information of cast.
-            stoggle(
-                "Show More",
-                bio[0],
-            )
-        with col2:
-            st.image(urls[1])
-            stoggle(
-                "Show More",
-                bio[1],
-            )
-        with col3:
-            st.image(urls[2])
-            stoggle(
-                "Show More",
-                bio[2],
-            )
-        with col4:
-            st.image(urls[3])
-            stoggle(
-                "Show More",
-                bio[3],
-            )
-        with col5:
-            st.image(urls[4])
-            stoggle(
-                "Show More",
-                bio[4],
-            )
+        if not urls:
+            st.info("Cast information is unavailable for this title.")
+            return
+
+        cols = st.columns(len(urls))
+        for idx, col in enumerate(cols):
+            with col:
+                st.markdown('<div class="card">', unsafe_allow_html=True)
+                st.image(urls[idx])
+                st.markdown(f"<h4 style='text-align:center;'>{cast_names[idx]}</h4>", unsafe_allow_html=True)
+                stoggle(
+                    "Show More",
+                    bio[idx],
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
 
     def paging_movies():
         # To create pages functionality using session state.
         max_pages = movies.shape[0] / 10
         max_pages = int(max_pages) - 1
 
+        st.markdown('<div class="main-block">', unsafe_allow_html=True)
+        st.subheader("Browse the entire catalogue")
         col1, col2, col3 = st.columns([1, 9, 1])
 
         with col1:
@@ -228,73 +378,25 @@ def main():
                     st.session_state['movie_number'] += 10
 
         display_all_movies(st.session_state['movie_number'])
+        st.markdown('</div>', unsafe_allow_html=True)
 
     def display_all_movies(start):
 
         i = start
-        with st.container():
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col1:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col2:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col3:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col4:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col5:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-        with st.container():
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col1:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col2:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col3:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col4:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
-
-            with col5:
-                id = movies.iloc[i]['movie_id']
-                link = preprocess.fetch_posters(id)
-                st.image(link, caption=movies['title'][i])
-                i = i + 1
+        for _ in range(2):  # two rows of five cards
+            cols = st.columns(5)
+            for col in cols:
+                if i >= len(movies):
+                    break
+                with col:
+                    movie_id = movies.iloc[i]['movie_id']
+                    link = preprocess.fetch_posters(movie_id)
+                    st.markdown('<div class="card recommend-card">', unsafe_allow_html=True)
+                    st.image(link, caption=movies['title'][i])
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    i += 1
+            if i >= len(movies):
+                break
 
         st.session_state['page_number'] = i
 
