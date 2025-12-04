@@ -320,7 +320,7 @@ def main():
                 st.metric("Runtime", info[6])
 
             st.markdown('<div class="section-title">Overview</div>', unsafe_allow_html=True)
-            st.write(info[3], wrapText=False)
+            st.write(info[3])
 
             stat1, stat2, stat3 = st.columns(3)
             with stat1:
