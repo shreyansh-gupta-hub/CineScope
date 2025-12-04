@@ -8,11 +8,16 @@ from nltk.corpus import stopwords
 from nltk.stem.porter import PorterStemmer
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import streamlit as st
 
 # Object for porterStemmer
 ps = PorterStemmer()
-nltk.download('stopwords')
-import streamlit as st
+
+# Ensure stopwords are available once; avoid repeated downloads on every rerun
+try:
+    nltk.data.find("corpora/stopwords")
+except LookupError:
+    nltk.download("stopwords")
 
 
 def get_genres(obj):
@@ -128,40 +133,55 @@ def stemming_stopwords(li):
     return str_
 
 
+POSTER_PLACEHOLDER = (
+    "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224"
+)
+
+
+@st.cache_resource(show_spinner=False)
+def _poster_url_map():
+    """
+    Build a fast in-memory mapping from TMDB movie id -> poster URL using the local CSV.
+    This avoids hitting the TMDB API for every recommendation/card render.
+    """
+    try:
+        # Prefer the Files/ CSV if present (matches rest of the project)
+        df = pd.read_csv(r"Files/tmdb_5000_movies.csv")
+    except FileNotFoundError:
+        df = pd.read_csv(r"tmdb_5000_movies.csv")
+
+    mapping = {}
+    if "id" in df.columns and "poster_path" in df.columns:
+        for _, row in df[["id", "poster_path"]].iterrows():
+            poster_path = row["poster_path"]
+            if isinstance(poster_path, str) and poster_path:
+                mapping[int(row["id"])] = f"https://image.tmdb.org/t/p/w780/{poster_path}"
+
+    return mapping
+
+
+@st.cache_data(show_spinner=False)
 def fetch_posters(movie_id):
-    import time
-    max_retries = 3
-    retry_delay = 1
-    
-    for attempt in range(max_retries):
-        try:
-            response = requests.get(
-                'https://api.themoviedb.org/3/movie/{}?api_key=6177b4297dff132d300422e0343471fb'.format(movie_id),
-                timeout=10
-            )
-            data = response.json()
-            try:
-                str_ = "https://image.tmdb.org/t/p/w780/" + data['poster_path']
-            except:
-                str_ = "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
-                       "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
-            return str_
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            if attempt < max_retries - 1:
-                time.sleep(retry_delay)
-                continue
-            else:
-                # Return placeholder image if all retries fail
-                return "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
-                       "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
-        except Exception as e:
-            return "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224?k=6&m" \
-                   "=922024224&s=612x612&w=0&h=LXl8Ul7bria6auAXKIjlvb6hRHkAodTqyqBeA6K7R54="
+    """
+    Very fast, offline lookup of poster URLs using the local TMDB CSV.
+    Falls back to a static placeholder if the movie id is missing.
+    """
+    mapping = _poster_url_map()
+    try:
+        return mapping.get(int(movie_id), POSTER_PLACEHOLDER)
+    except Exception:
+        return POSTER_PLACEHOLDER
+
+
+@st.cache_resource(show_spinner=False)
+def _load_similarity(pickle_file_path):
+    with open(pickle_file_path, 'rb') as pickle_file:
+        similarity_tags = pickle.load(pickle_file)
+    return similarity_tags
 
 
 def recommend(new_df, movie, pickle_file_path):
-    with open(pickle_file_path, 'rb') as pickle_file:
-        similarity_tags = pickle.load(pickle_file)
+    similarity_tags = _load_similarity(pickle_file_path)
 
     movie_idx = new_df[new_df['title'] == movie].index[0]
 
@@ -185,6 +205,7 @@ def vectorise(new_df, col_name):
     return sim_bt
 
 
+@st.cache_data(show_spinner=False)
 def fetch_person_details(id_):
     import time
     max_retries = 3
@@ -229,7 +250,8 @@ def fetch_person_details(id_):
             return url, biography
 
 
-def get_details(selected_movie_name):
+@st.cache_resource(show_spinner=False)
+def _load_movie_frames():
     # Loading both the dataframes for fast reading
     pickle_file_path = r'Files/movies_dict.pkl'
     with open(pickle_file_path, 'rb') as pickle_file:
@@ -242,6 +264,12 @@ def get_details(selected_movie_name):
         loaded_dict_2 = pickle.load(pickle_file)
 
     movies2 = pd.DataFrame.from_dict(loaded_dict_2)
+
+    return movies, movies2
+
+
+def get_details(selected_movie_name):
+    movies, movies2 = _load_movie_frames()
 
     # Extracting series of data to be displayed
     a = pd.DataFrame(movies2[movies2['title'] == selected_movie_name])

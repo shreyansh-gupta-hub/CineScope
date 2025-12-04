@@ -54,10 +54,6 @@ def inject_custom_styles():
             }
             .main-block {
                 padding: 2rem 2.5rem;
-                background: rgba(8, 15, 40, 0.55);
-                border-radius: 1.5rem;
-                border: 1px solid rgba(255, 255, 255, 0.05);
-                box-shadow: 0 15px 35px rgba(0,0,0,0.35);
             }
             .movie-chip {
                 padding: 0.35rem 0.75rem;
@@ -76,15 +72,16 @@ def inject_custom_styles():
             }
             .card {
                 background: rgba(255,255,255,0.04);
-                padding: 1rem;
+                padding: 0.75rem 1rem;
                 border-radius: 1rem;
                 border: 1px solid rgba(255,255,255,0.08);
                 min-height: 100%;
-                transition: transform 0.25s ease, border-color 0.25s ease;
+                transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
             }
             .card:hover {
-                transform: translateY(-4px);
-                border-color: rgba(125, 211, 252, 0.35);
+                transform: translateY(-2px);
+                border-color: rgba(125, 211, 252, 0.55);
+                box-shadow: 0 10px 25px rgba(0,0,0,0.35);
             }
             .recommend-card img {
                 border-radius: 0.75rem;
@@ -92,9 +89,10 @@ def inject_custom_styles():
             }
             .recommend-card h4 {
                 font-size: 1rem;
-                margin-top: 0.75rem;
-                margin-bottom: 0.2rem;
+                margin-top: 0.15rem;
+                margin-bottom: 0.15rem;
                 color: #f8fafc;
+                line-height: 1.3;
             }
             .recommend-card span {
                 font-size: 0.85rem;
@@ -146,6 +144,14 @@ def inject_custom_styles():
             }
             .stToggle label {
                 font-weight: 600;
+            }
+            /* Hide default Streamlit image icons */
+            [data-testid="stImage"] img[src*="data:image"] {
+                display: none;
+            }
+            /* Hide broken image placeholders */
+            img[alt=""] {
+                display: none;
             }
         </style>
         """,
@@ -221,15 +227,17 @@ def main():
             st.info("No fresh picks for this strategy, try another tab.")
             return
         st.markdown(f'<div class="section-title">{label}</div>', unsafe_allow_html=True)
+        
         cols = st.columns(len(recommendations))
         for idx, col in enumerate(cols):
             movie = recommendations[idx]
             with col:
-                st.markdown('<div class="card recommend-card">', unsafe_allow_html=True)
-                st.image(movie["poster"], use_column_width=True)
+                # Only show image if it's a valid TMDB poster
+                poster = movie['poster']
+                if poster and 'image.tmdb.org' in poster and 'istockphoto.com' not in poster:
+                    st.image(poster, use_container_width=True)
                 st.markdown(f"<h4>{movie['title']}</h4>", unsafe_allow_html=True)
                 st.caption("Open Describe tab for complete profile.")
-                st.markdown('</div>', unsafe_allow_html=True)
 
     def recommend_display():
 
@@ -273,51 +281,44 @@ def main():
         info = preprocess.get_details(selected_movie_name)
 
         with st.container():
-            image_col, text_col = st.columns((1, 2))
-            with image_col:
-                st.text('\n')
-                st.image(info[0])
+            st.text('\n')
+            st.title(selected_movie_name)
+            st.text('\n')
+            metric_col1, metric_col2, metric_col3 = st.columns(3)
+            with metric_col1:
+                st.metric("Rating", info[8])
+            with metric_col2:
+                st.metric("Votes", info[9])
+            with metric_col3:
+                st.metric("Runtime", info[6])
 
-            with text_col:
-                st.text('\n')
-                st.text('\n')
-                st.title(selected_movie_name)
-                st.text('\n')
-                metric_col1, metric_col2, metric_col3 = st.columns(3)
-                with metric_col1:
-                    st.metric("Rating", info[8])
-                with metric_col2:
-                    st.metric("Votes", info[9])
-                with metric_col3:
-                    st.metric("Runtime", info[6])
+            st.markdown('<div class="section-title">Overview</div>', unsafe_allow_html=True)
+            st.write(info[3], wrapText=False)
 
-                st.markdown('<div class="section-title">Overview</div>', unsafe_allow_html=True)
-                st.write(info[3], wrapText=False)
+            stat1, stat2, stat3 = st.columns(3)
+            with stat1:
+                st.caption("Release Date")
+                st.write(info[4])
+            with stat2:
+                st.caption("Budget")
+                st.write(info[1])
+            with stat3:
+                st.caption("Revenue")
+                st.write(info[5])
 
-                stat1, stat2, stat3 = st.columns(3)
-                with stat1:
-                    st.caption("Release Date")
-                    st.write(info[4])
-                with stat2:
-                    st.caption("Budget")
-                    st.write(info[1])
-                with stat3:
-                    st.caption("Revenue")
-                    st.write(info[5])
+            info_col1, info_col2, info_col3 = st.columns(3)
+            with info_col1:
+                genres = " · ".join(info[2])
+                st.caption("Genres")
+                st.write(genres)
 
-                info_col1, info_col2, info_col3 = st.columns(3)
-                with info_col1:
-                    genres = " · ".join(info[2])
-                    st.caption("Genres")
-                    st.write(genres)
-
-                with info_col2:
-                    avail = " · ".join(info[13])
-                    st.caption("Available in")
-                    st.write(avail)
-                with info_col3:
-                    st.caption("Directed by")
-                    st.write(info[12][0])
+            with info_col2:
+                avail = " · ".join(info[13])
+                st.caption("Available in")
+                st.write(avail)
+            with info_col3:
+                st.caption("Directed by")
+                st.write(info[12][0])
 
         # Displaying information of casts.
         st.header('Cast')
@@ -342,7 +343,6 @@ def main():
         for idx, col in enumerate(cols):
             with col:
                 st.markdown('<div class="card">', unsafe_allow_html=True)
-                st.image(urls[idx])
                 st.markdown(f"<h4 style='text-align:center;'>{cast_names[idx]}</h4>", unsafe_allow_html=True)
                 stoggle(
                     "Show More",
@@ -389,11 +389,12 @@ def main():
                 if i >= len(movies):
                     break
                 with col:
-                    movie_id = movies.iloc[i]['movie_id']
-                    link = preprocess.fetch_posters(movie_id)
-                    st.markdown('<div class="card recommend-card">', unsafe_allow_html=True)
-                    st.image(link, caption=movies['title'][i])
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    title = movies['title'][i]
+                    poster = preprocess.fetch_posters(movies['movie_id'][i])
+                    # Only show image if it's a valid TMDB poster
+                    if poster and 'image.tmdb.org' in poster and 'istockphoto.com' not in poster:
+                        st.image(poster, use_container_width=True)
+                    st.markdown(f"<h4>{title}</h4>", unsafe_allow_html=True)
                     i += 1
             if i >= len(movies):
                 break
