@@ -133,24 +133,39 @@ def stemming_stopwords(li):
     return str_
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=False, ttl=3600)
 def fetch_posters(movie_id):
     """
     Fetch poster URL from TMDB API using movie ID.
     Returns None if poster is not available.
+    Cached for 1 hour to improve performance.
     """
     try:
         response = requests.get(
             f'https://api.themoviedb.org/3/movie/{movie_id}?api_key=6177b4297dff132d300422e0343471fb',
-            timeout=5
+            timeout=3
         )
         data = response.json()
         
         if 'poster_path' in data and data['poster_path']:
-            return f"https://image.tmdb.org/t/p/w500{data['poster_path']}"
+            return f"https://image.tmdb.org/t/p/w300{data['poster_path']}"
         return None
     except Exception:
         return None
+
+
+@st.cache_data(show_spinner=False, ttl=3600)
+def fetch_posters_batch(movie_ids):
+    """
+    Fetch multiple posters at once for better performance.
+    Returns a dictionary mapping movie_id to poster URL.
+    """
+    posters = {}
+    for movie_id in movie_ids:
+        poster = fetch_posters(movie_id)
+        if poster:
+            posters[movie_id] = poster
+    return posters
 
 
 @st.cache_resource(show_spinner=False)

@@ -214,7 +214,7 @@ def main():
         recs = []
         cnt = 0
         for title, poster in zip(movies, posters):
-            if cnt == 5:
+            if cnt == 3:  # Reduced from 5 to 3 for faster loading
                 break
             if title not in displayed:
                 recs.append({"title": title, "poster": poster})
@@ -381,22 +381,27 @@ def main():
         st.markdown('</div>', unsafe_allow_html=True)
 
     def display_all_movies(start):
-
+        # Fetch posters for current page in batch
+        end = min(start + 10, len(movies))
+        movie_ids = [movies['movie_id'][i] for i in range(start, end)]
+        poster_map = preprocess.fetch_posters_batch(movie_ids)
+        
         i = start
         for _ in range(2):  # two rows of five cards
             cols = st.columns(5)
             for col in cols:
-                if i >= len(movies):
+                if i >= len(movies) or i >= end:
                     break
                 with col:
                     title = movies['title'][i]
-                    poster = preprocess.fetch_posters(movies['movie_id'][i])
+                    movie_id = movies['movie_id'][i]
+                    poster = poster_map.get(movie_id)
                     # Only show image if it's a valid TMDB poster
-                    if poster and 'image.tmdb.org' in poster and 'istockphoto.com' not in poster:
+                    if poster and 'image.tmdb.org' in poster:
                         st.image(poster, use_container_width=True)
                     st.markdown(f"<h4>{title}</h4>", unsafe_allow_html=True)
                     i += 1
-            if i >= len(movies):
+            if i >= len(movies) or i >= end:
                 break
 
         st.session_state['page_number'] = i
