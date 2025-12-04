@@ -203,10 +203,38 @@ def main():
         global displayed
         displayed.clear()
         collected = {}
+        
+        # Collect all movie IDs first
+        all_movie_ids = []
+        temp_recs = {}
+        
         for descriptor, path in RECOMMENDER_CONFIG:
-            recs = fetch_unique_recommendations(new_df, selected_movie_name, path)
+            movies_list, posters_list = preprocess.recommend(new_df, selected_movie_name, path)
+            recs = []
+            cnt = 0
+            for title, poster in zip(movies_list, posters_list):
+                if cnt == 3:
+                    break
+                if title not in displayed:
+                    # Get movie_id for this title
+                    movie_id = new_df[new_df['title'] == title]['movie_id'].values[0]
+                    recs.append({"title": title, "poster": poster, "movie_id": movie_id})
+                    all_movie_ids.append(movie_id)
+                    displayed.append(title)
+                    cnt += 1
             if recs:
-                collected[descriptor] = recs
+                temp_recs[descriptor] = recs
+        
+        # Batch fetch all posters at once
+        poster_map = preprocess.fetch_posters_batch(all_movie_ids)
+        
+        # Update recommendations with fetched posters
+        for descriptor, recs in temp_recs.items():
+            for rec in recs:
+                if rec['movie_id'] in poster_map:
+                    rec['poster'] = poster_map[rec['movie_id']]
+            collected[descriptor] = recs
+        
         return collected
 
     def fetch_unique_recommendations(dataset, selected_movie_name, pickle_file_path):
@@ -259,7 +287,8 @@ def main():
 
         if rec_button:
             st.session_state.selected_movie_name = selected_movie_name
-            st.session_state.recommendations_cache = gather_recommendations(selected_movie_name)
+            with st.spinner('🎬 Fetching movie recommendations...'):
+                st.session_state.recommendations_cache = gather_recommendations(selected_movie_name)
 
         if st.session_state.recommendations_cache:
             st.markdown("### Explore recommendation strategies")

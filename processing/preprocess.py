@@ -157,14 +157,34 @@ def fetch_posters(movie_id):
 @st.cache_data(show_spinner=False, ttl=3600)
 def fetch_posters_batch(movie_ids):
     """
-    Fetch multiple posters at once for better performance.
+    Fetch multiple posters at once using concurrent requests for better performance.
     Returns a dictionary mapping movie_id to poster URL.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
     posters = {}
-    for movie_id in movie_ids:
-        poster = fetch_posters(movie_id)
-        if poster:
-            posters[movie_id] = poster
+    
+    def fetch_single(movie_id):
+        try:
+            response = requests.get(
+                f'https://api.themoviedb.org/3/movie/{movie_id}?api_key=6177b4297dff132d300422e0343471fb',
+                timeout=3
+            )
+            data = response.json()
+            if 'poster_path' in data and data['poster_path']:
+                return movie_id, f"https://image.tmdb.org/t/p/w300{data['poster_path']}"
+        except Exception:
+            pass
+        return movie_id, None
+    
+    # Fetch up to 10 posters concurrently
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(fetch_single, mid): mid for mid in movie_ids}
+        for future in as_completed(futures):
+            movie_id, poster = future.result()
+            if poster:
+                posters[movie_id] = poster
+    
     return posters
 
 
