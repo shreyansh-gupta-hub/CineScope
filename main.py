@@ -209,23 +209,21 @@ def main():
         temp_recs = {}
         
         for descriptor, path in RECOMMENDER_CONFIG:
-            movies_list, posters_list = preprocess.recommend(new_df, selected_movie_name, path)
+            movies_list, movie_ids_list = preprocess.recommend(new_df, selected_movie_name, path)
             recs = []
             cnt = 0
-            for title, poster in zip(movies_list, posters_list):
+            for title, movie_id in zip(movies_list, movie_ids_list):
                 if cnt == 3:
                     break
                 if title not in displayed:
-                    # Get movie_id for this title
-                    movie_id = new_df[new_df['title'] == title]['movie_id'].values[0]
-                    recs.append({"title": title, "poster": poster, "movie_id": movie_id})
+                    recs.append({"title": title, "poster": None, "movie_id": movie_id})
                     all_movie_ids.append(movie_id)
                     displayed.append(title)
                     cnt += 1
             if recs:
                 temp_recs[descriptor] = recs
         
-        # Batch fetch all posters at once
+        # Batch fetch all posters at once using concurrent requests
         poster_map = preprocess.fetch_posters_batch(all_movie_ids)
         
         # Update recommendations with fetched posters

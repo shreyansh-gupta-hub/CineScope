@@ -204,13 +204,13 @@ def recommend(new_df, movie, pickle_file_path):
     movie_list = sorted(list(enumerate(similarity_tags[movie_idx])), reverse=True, key=lambda x: x[1])[1:26]
 
     rec_movie_list = []
-    rec_poster_list = []
+    rec_movie_ids = []
 
     for i in movie_list:
         rec_movie_list.append(new_df.iloc[i[0]]['title'])
-        rec_poster_list.append(fetch_posters(new_df.iloc[i[0]]['movie_id']))
+        rec_movie_ids.append(new_df.iloc[i[0]]['movie_id'])
 
-    return rec_movie_list, rec_poster_list
+    return rec_movie_list, rec_movie_ids
 
 
 def vectorise(new_df, col_name):
