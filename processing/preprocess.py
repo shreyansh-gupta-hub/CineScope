@@ -133,44 +133,24 @@ def stemming_stopwords(li):
     return str_
 
 
-POSTER_PLACEHOLDER = (
-    "https://media.istockphoto.com/vectors/error-icon-vector-illustration-vector-id922024224"
-)
-
-
-@st.cache_resource(show_spinner=False)
-def _poster_url_map():
-    """
-    Build a fast in-memory mapping from TMDB movie id -> poster URL using the local CSV.
-    This avoids hitting the TMDB API for every recommendation/card render.
-    """
-    try:
-        # Prefer the Files/ CSV if present (matches rest of the project)
-        df = pd.read_csv(r"Files/tmdb_5000_movies.csv")
-    except FileNotFoundError:
-        df = pd.read_csv(r"tmdb_5000_movies.csv")
-
-    mapping = {}
-    if "id" in df.columns and "poster_path" in df.columns:
-        for _, row in df[["id", "poster_path"]].iterrows():
-            poster_path = row["poster_path"]
-            if isinstance(poster_path, str) and poster_path:
-                mapping[int(row["id"])] = f"https://image.tmdb.org/t/p/w780/{poster_path}"
-
-    return mapping
-
-
 @st.cache_data(show_spinner=False)
 def fetch_posters(movie_id):
     """
-    Very fast, offline lookup of poster URLs using the local TMDB CSV.
-    Falls back to a static placeholder if the movie id is missing.
+    Fetch poster URL from TMDB API using movie ID.
+    Returns None if poster is not available.
     """
-    mapping = _poster_url_map()
     try:
-        return mapping.get(int(movie_id), POSTER_PLACEHOLDER)
+        response = requests.get(
+            f'https://api.themoviedb.org/3/movie/{movie_id}?api_key=6177b4297dff132d300422e0343471fb',
+            timeout=5
+        )
+        data = response.json()
+        
+        if 'poster_path' in data and data['poster_path']:
+            return f"https://image.tmdb.org/t/p/w500{data['poster_path']}"
+        return None
     except Exception:
-        return POSTER_PLACEHOLDER
+        return None
 
 
 @st.cache_resource(show_spinner=False)
